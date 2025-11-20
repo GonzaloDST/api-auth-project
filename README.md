@@ -1,2 +1,2 @@
-# api-auth-project
-Proyecto Final Cloud Computing
+# cloud-finalproject-api-login
+Curso Cloud Computing
