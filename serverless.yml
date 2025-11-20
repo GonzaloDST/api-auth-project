@@ -39,6 +39,7 @@ functions:
       - http:
           path: /auth/registro
           method: post
+          cors: true
 
   loginUsuario:
     handler: LoginUsuario.lambda_handler
@@ -46,6 +47,7 @@ functions:
       - http:
           path: /auth/login
           method: post
+          cors: true
 
   logoutUsuario:
     handler: LogoutUsuario.lambda_handler
@@ -53,6 +55,7 @@ functions:
       - http:
           path: /auth/logout
           method: post
+          cors: true
 
   generarInvitationCode:  
     handler: GenerarInvitationCode.lambda_handler
@@ -60,6 +63,7 @@ functions:
       - http:
           path: /auth/generate-invitation
           method: post
+          cors: true
 
 resources:
   Resources:
