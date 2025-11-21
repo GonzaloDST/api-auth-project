@@ -43,7 +43,8 @@ CORS_HEADERS = {
     'Content-Type': 'application/json'
 }
 
-# Función para determinar redirección después del login (MODIFICADA)
+# Función para determinar redirección después del login
+## Creo que no es necesario si se maneja desde el front
 def get_redirect_path(user_type, staff_tier, frontend_type):
     if user_type == 'staff':
         if staff_tier == 'admin':
@@ -70,6 +71,7 @@ def lambda_handler(event, context):
         email = body.get('email', '').lower().strip()
         password = body.get('password')
         frontend_type = body.get('frontend_type', 'client')
+        tenant_id_sede = body.get('tenant_id_sede')
 
         # Validación 1: Campos obligatorios
         if not email or not password:
@@ -82,32 +84,61 @@ def lambda_handler(event, context):
             }
 
         dynamodb = boto3.resource('dynamodb')
-        usuarios_table_name = os.environ.get('USUARIOS_TABLE', 'dev-t_usuarios')
-        t_usuarios = dynamodb.Table(usuarios_table_name)
+        clientes_table_name = os.environ.get('USUARIOS_TABLE', 'dev-t_clientes')
+        staff_table_name = os.environ.get('STAFF_TABLE', 'dev-t_staff')
+        t_clientes = dynamodb.Table(clientes_table_name)
+        t_staff = dynamodb.Table(staff_table_name)
         
         # Buscar usuario por email
-        try:
-            response = t_usuarios.get_item(Key={'email': email})
-            if 'Item' not in response:
+        if frontend_type == 'client':
+            try:
+                response = t_clientes.get_item(Key={'email': email})
+                if 'Item' not in response:
+                    return {
+                        'statusCode': 401,
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': 'Credenciales inválidas'
+                        })
+                    }
+                
+                user = response['Item']
+                
+            except Exception as e:
+                print(f"Error fetching user: {str(e)}")
                 return {
-                    'statusCode': 401,
+                    'statusCode': 500,
                     'headers': CORS_HEADERS,
                     'body': json.dumps({
-                        'error': 'Credenciales inválidas'
+                        'error': 'Error interno del servidor'
                     })
                 }
-            
-            user = response['Item']
-            
-        except Exception as e:
-            print(f"Error fetching user: {str(e)}")
-            return {
-                'statusCode': 500,
-                'headers': CORS_HEADERS,
-                'body': json.dumps({
-                    'error': 'Error interno del servidor'
-                })
-            }
+        elif frontend_type == 'staff':
+            try:
+                response = t_staff.get_item(Key={
+                            'tenant_id_sede': tenant_id_sede,
+                            'email': email
+                            })
+                if 'Item' not in response:
+                    return {
+                        'statusCode': 401,
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': 'Credenciales inválidas'
+                        })
+                    }
+                
+                user = response['Item']
+                
+            except Exception as e:
+                print(f"Error fetching user: {str(e)}")
+                return {
+                    'statusCode': 500,
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'error': 'Error interno del servidor'
+                    })
+                }
         
         # Verificar contraseña
         hashed_input = hash_password(password)
@@ -153,17 +184,33 @@ def lambda_handler(event, context):
 
         # Actualizar último login
         current_time = datetime.utcnow().isoformat()
-        try:
-            t_usuarios.update_item(
-                Key={'email': email},
-                UpdateExpression='SET last_login = :login_time, updated_at = :update_time',
-                ExpressionAttributeValues={
-                    ':login_time': current_time,
-                    ':update_time': current_time
-                }
-            )
-        except Exception as e:
-            print(f"Error updating last login: {str(e)}")
+        if frontend_type == 'client':
+            try:
+                t_clientes.update_item(
+                    Key={'email': email},
+                    UpdateExpression='SET last_login = :login_time, updated_at = :update_time',
+                    ExpressionAttributeValues={
+                        ':login_time': current_time,
+                        ':update_time': current_time
+                    }
+                )
+            except Exception as e:
+                print(f"Error updating last login: {str(e)}")
+        elif frontend_type == 'staff':
+            try:
+                t_staff.update_item(
+                    Key={
+                            'tenant_id_sede': tenant_id_sede,
+                            'email': email
+                        },
+                    UpdateExpression='SET last_login = :login_time, updated_at = :update_time',
+                    ExpressionAttributeValues={
+                        ':login_time': current_time,
+                        ':update_time': current_time
+                    }
+                )
+            except Exception as e:
+                print(f"Error updating last login: {str(e)}")
         
         # Generar token JWT
         user_token_data = {
@@ -185,7 +232,7 @@ def lambda_handler(event, context):
             'user_type': user_type,
             'is_active': user.get('is_active', True),
             'last_login': current_time,
-            'redirect_to': get_redirect_path(user_type, staff_tier, frontend_type)  # MODIFICADO
+            'redirect_to': get_redirect_path(user_type, staff_tier, frontend_type)  
         }
         
         if user_type == 'staff':

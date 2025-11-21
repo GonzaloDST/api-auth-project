@@ -108,7 +108,7 @@ CORS_HEADERS = {
 # Función principal del Lambda
 def lambda_handler(event, context):
     """
-    Maneja el registro de usuarios para ambos frontends
+    Maneja el registro de clientes o staff para ambos frontends
     """
     try:
         print("Event received:", json.dumps(event, indent=2))
@@ -131,6 +131,7 @@ def lambda_handler(event, context):
         staff_tier = body.get('staff_tier')
         invitation_code = body.get('invitation_code')
         frontend_type = body.get('frontend_type', 'client')
+        tenant_id_sede = body.get('tenant_id_sede')
 
         # Validación 1: Campos obligatorios
         if not email or not password:
@@ -219,79 +220,148 @@ def lambda_handler(event, context):
             staff_tier = None
         
         dynamodb = boto3.resource('dynamodb')
-        usuarios_table_name = os.environ.get('USUARIOS_TABLE', 'dev-t_usuarios')
-        t_usuarios = dynamodb.Table(usuarios_table_name)
+        clientes_table_name = os.environ.get('USUARIOS_TABLE', 'dev-t_clientes')
+        staff_table_name = os.environ.get('STAFF_TABLE', 'dev-t_staff')
+        t_clientes = dynamodb.Table(clientes_table_name)
+        t_staff = dynamodb.Table(staff_table_name)
         
         # Verificar si el email ya está registrado
-        try:
-            existing_user = t_usuarios.get_item(Key={'email': email})
-            if 'Item' in existing_user:
-                return {
-                    'statusCode': 409,
-                    'headers': CORS_HEADERS,
-                    'body': json.dumps({
-                        'error': 'El email ya está registrado en el sistema'
-                    })
-                }
-        except Exception as e:
-            print(f"Error checking existing user: {str(e)}")
+        if frontend_type == 'staff':
+            try:
+                existing_staff = t_staff.get_item(Key={
+                            'tenant_id_sede': tenant_id_sede,
+                            'email': email
+                            })
+                if 'Item' in existing_staff:
+                    return {
+                        'statusCode': 409,
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': 'El email ya está registrado en la sede'
+                        })
+                    }
+            except Exception as e:
+                print(f"Error checking existing user: {str(e)}")
+        elif frontend_type == 'client':
+            try:
+                existing_client = t_clientes.get_item(Key={'email': email})
+                if 'Item' in existing_client:
+                    return {
+                        'statusCode': 409,
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': 'El email ya está registrado en el sistema'
+                        })
+                    }
+            except Exception as e:
+                print(f"Error checking existing user: {str(e)}")
+            
+        else: ## No debería pasar porque nunca debería faltar frontend_type
+            try:
+                existing_client = t_clientes.get_item(Key={'email': email})
+                if 'Item' in existing_client:
+                    return {
+                        'statusCode': 409,
+                        'headers': CORS_HEADERS,
+                        'body': json.dumps({
+                            'error': 'El email ya está registrado en el sistema'
+                        })
+                    }
+            except Exception as e:
+                print(f"Error checking existing user: {str(e)}")
+            
         
         ## REGISTRO
         hashed_password = hash_password(password)
         current_time = datetime.utcnow().isoformat()
         
         # Crear el item completo 
-        user_item = {
-            'user_id': str(uuid.uuid4()),
-            'email': email,
-            'password': hashed_password,  
-            'name': name,
-            'phone': phone,
-            'gender': gender,
-            'user_type': user_type,
-            'created_at': current_time,    
-            'updated_at': current_time,    
-            'is_active': True,             
-            'last_login': None,            
-            'registration_source': frontend_type
-        }
+        if frontend_type == 'staff':
+            staff_item = {
+                'user_id': str(uuid.uuid4()),
+                'tenant_id_sede': tenant_id_sede,
+                'email': email,
+                'password': hashed_password,  
+                'name': name,
+                'phone': phone,
+                'gender': gender,
+                'user_type': user_type,
+                'created_at': current_time,    
+                'updated_at': current_time,    
+                'is_active': True,             
+                'last_login': None,            
+                'registration_source': frontend_type   
+                }
+        elif frontend_type == 'client':
+            client_item = {
+                'user_id': str(uuid.uuid4()),
+                'email': email,
+                'password': hashed_password,  
+                'name': name,
+                'phone': phone,
+                'gender': gender,
+                'user_type': user_type,
+                'created_at': current_time,    
+                'updated_at': current_time,    
+                'is_active': True,             
+                'last_login': None,            
+                'registration_source': frontend_type
+                }
         
         # Agregar campos específicos de staff
         if user_type == 'staff':
-            user_item['staff_tier'] = staff_tier
-            user_item['permissions'] = get_staff_permissions(staff_tier)
-            user_item['is_verified'] = True
+            staff_item['staff_tier'] = staff_tier
+            staff_item['permissions'] = get_staff_permissions(staff_tier)
+            staff_item['is_verified'] = True
         else:
-            user_item['is_verified'] = True
+            client_item['is_verified'] = True
            
         # Guardar usuario en DynamoDB
-        t_usuarios.put_item(Item=user_item)
-        
-        print(f"Usuario registrado exitosamente: {email}, tipo: {user_type}, frontend: {frontend_type}")
+        if frontend_type == 'staff':
+            t_staff.put_item(Item=staff_item)
+            print(f"Staff registrado exitosamente: {email}, tipo: {user_type}, sede: {tenant_id_sede}, frontend: {frontend_type}")
+        elif frontend_type == 'client':
+            t_clientes.put_item(Item=client_item)
+            print(f"Usuario registrado exitosamente: {email}, tipo: {user_type}, frontend: {frontend_type}")
 
         ## RESPONSE
-        response_data = {
+        response_data_client = {
             'message': 'Usuario registrado exitosamente',
-            'user_id': user_item['user_id'],
+            'user_id': client_item['user_id'],
             'email': email,
             'name': name,
             'user_type': user_type,
             'is_active': True,
             'registration_source': frontend_type,
-            'requires_verification': not user_item['is_verified']
+            'requires_verification': not client_item['is_verified']
+        }
+        response_data_staff = {
+            'message': 'Usuario registrado exitosamente',
+            'user_id': client_item['user_id'],
+            'email': email,
+            'name': name,
+            'user_type': user_type,
+            'is_active': True,
+            'registration_source': frontend_type,
+            'requires_verification': not client_item['is_verified']
         }
         
         # Agregar información específica de staff a la respuesta
         if user_type == 'staff':
-            response_data['staff_tier'] = staff_tier
-            response_data['permissions'] = user_item['permissions']
-            response_data['is_verified'] = True
-        
-        return {
+            response_data_staff['staff_tier'] = staff_tier
+            response_data_staff['permissions'] = staff_item['permissions']
+            response_data_staff['is_verified'] = True
+            return {
             'statusCode': 201,
             'headers': CORS_HEADERS,
-            'body': json.dumps(response_data)
+            'body': json.dumps(response_data_staff)
         }
+        else:
+            return {
+                'statusCode': 201,
+                'headers': CORS_HEADERS,
+                'body': json.dumps(response_data_client)
+            }
 
     except Exception as e:
         print("Exception:", str(e))

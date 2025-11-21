@@ -14,7 +14,8 @@ provider:
   iam:
     role: arn:aws:iam::389752090540:role/LabRole
   environment:
-    USUARIOS_TABLE: ${sls:stage}-t_usuarios
+    USUARIOS_TABLE: ${sls:stage}-t_clientes
+    STAFF_TABLE: ${sls:stage}-t_staff
     INVITATION_CODES_TABLE: ${sls:stage}-t_invitation_codes
     JWT_SECRET: ${env:JWT_SECRET, 'utec'}
 
@@ -64,7 +65,7 @@ functions:
 
 resources:
   Resources:
-    TablaUsuarios:
+    TablaClientes:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: ${self:provider.environment.USUARIOS_TABLE}
@@ -74,6 +75,22 @@ resources:
         KeySchema:
           - AttributeName: email
             KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    TablaStaff:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.STAFF_TABLE}
+        AttributeDefinitions:
+          - AttributeName: tenant_id_sede
+            AttributeType: S
+          - AttributeName: email 
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id_sede 
+            KeyType: HASH
+          - AttributeName: email 
+            KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
 
     TablaInvitationCodes:  
