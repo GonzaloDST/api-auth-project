@@ -1,5 +1,6 @@
 {
     "email": "alonso_trabajador@utec.edu.pe",
     "password": "123456",
-    "frontend_type": "staff"
+    "frontend_type": "staff",
+    "tenant_id_sede": "MIRAFLORES"
 }

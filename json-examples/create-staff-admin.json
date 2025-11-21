@@ -1,0 +1,13 @@
+{
+    "name": "admin",
+    "email": "alonso_admin@utec.edu.pe",
+    "password": "123456",
+    "phone": "123456789",
+    "gender": "masculino",
+    "user_type": "staff",
+    "staff_tier": "admin",
+    "frontend_type": "staff",
+    "invitation_code": "404E65C1",
+    "tenant_id_sede": "MIRAFLORES"
+
+}
