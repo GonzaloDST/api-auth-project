@@ -1,9 +1,6 @@
 org: gonzalodst
 service: api-auth
 
-plugins:
-  - serverless-python-requirements
-
 custom:
   pythonRequirements:
     dockerizePip: true
