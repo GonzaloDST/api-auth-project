@@ -1,4 +1,4 @@
-org: gonzalodst
+org: alonsobenitess2
 service: api-auth
 
 custom:
@@ -8,11 +8,11 @@ custom:
 
 provider:
   name: aws
-  runtime: python3.13
+  runtime: python3.10
   memorySize: 1024
   timeout: 20
   iam:
-    role: arn:aws:iam::389752090540:role/LabRole
+    role: arn:aws:iam::295655809569:role/LabRole
   environment:
     USUARIOS_TABLE: ${sls:stage}-t_clientes
     STAFF_TABLE: ${sls:stage}-t_staff
